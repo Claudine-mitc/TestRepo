@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#C87840" />
+  <meta name="description" content="Beru — A warm AI mental wellness companion. You don't have to figure it out alone." />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Beru" />
+  <title>Beru — AI Mental Wellness Companion</title>
+  <link rel="manifest" href="/manifest.json" />
+  <link rel="icon" href="/icon-192.png" />
+  <link rel="apple-touch-icon" href="/icon-192.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Nunito:wght@300;400;600;700&display=swap" rel="stylesheet" />
+
+  <!-- Plausible analytics (privacy-first, no cookies) -->
+  <script defer data-domain="heyberu.com" src="https://plausible.io/js/script.js"></script>
+
+  <!-- Global error handlers — must run before any other scripts -->
+  <script>
+    window._beruErrors = [];
+
+    function logError(info) {
+      try {
+        window._beruErrors.push({ ts: Date.now(), info: info });
+        if (window._beruErrors.length > 50) window._beruErrors.shift();
+        var stored = [];
+        try { stored = JSON.parse(localStorage.getItem('beru_error_log') || '[]'); } catch(e) {}
+        stored.push({ ts: Date.now(), info: info });
+        if (stored.length > 50) stored.shift();
+        localStorage.setItem('beru_error_log', JSON.stringify(stored));
+      } catch(e) {}
+      // Fire-and-forget to server (best effort)
+      try {
+        fetch('/api/log-error', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(info)
+        });
+      } catch(e) {}
+    }
+
+    window.onerror = function(msg, src, line, col, err) {
+      logError({ type: 'onerror', msg: msg, src: src, line: line, col: col });
+      return false;
+    };
+
+    window.onunhandledrejection = function(e) {
+      logError({ type: 'unhandledrejection', reason: String(e.reason) });
+    };
+  </script>
+
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body, #root { height: 100%; }
+    body { background: #1A1008; overflow-x: hidden; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <!-- React + ReactDOM from CDN -->
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+  <!-- Babel standalone for JSX transpilation (no build step) -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <!-- Crisis data (sets global CRISIS_DATA, getCrisisData, getCountryList) -->
+  <script src="/crisis-data.js"></script>
+
+  <!-- Main application -->
+  <script type="text/babel" src="/app.jsx"></script>
+
+  <!-- Service worker registration -->
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', function() {
+        navigator.serviceWorker.register('/service-worker.js').catch(function(err) {
+          console.warn('SW registration failed:', err);
+        });
+      });
+    }
+  </script>
+</body>
+</html>
