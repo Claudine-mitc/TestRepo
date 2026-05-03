@@ -262,9 +262,9 @@
     var l3 = ['kill myself', 'end my life', 'want to die', 'suicidal', 'suicide', 'take my own life', 'no reason to live'];
     var l2 = ['hit me', 'hurting me', 'abuse', 'domestic violence', 'rape', 'assault', 'attacked'];
     var l1 = ['drinking too much', 'drugs', 'overdose', 'self harm', 'cutting', 'substance'];
-    for (var i = 0; i < l3.length; i++) { if (t.includes(l3[i])) return { level: 3 }; }
-    for (var i = 0; i < l2.length; i++) { if (t.includes(l2[i])) return { level: 2 }; }
-    for (var i = 0; i < l1.length; i++) { if (t.includes(l1[i])) return { level: 1 }; }
+    if (l3.some(function (w) { return t.includes(w); })) return { level: 3 };
+    if (l2.some(function (w) { return t.includes(w); })) return { level: 2 };
+    if (l1.some(function (w) { return t.includes(w); })) return { level: 1 };
     return { level: 0 };
   }
 
@@ -838,7 +838,6 @@
         <div className="breath-label">{phaseLabels[phase]}</div>
         {running && <div style={{ fontSize: 15, color: 'var(--text2)' }}>{count}</div>}
         {!running && <p style={{ color: 'var(--text2)', fontSize: 14, textAlign: 'center', maxWidth: 240 }}>Tap the orb to start</p>}
-        <button className="btn btn-ghost" onClick={onBack}>← Back</button>
       </div>
     );
   }
@@ -869,23 +868,25 @@
 
   // ── Wrap-Up Screen ─────────────────────────────────────────────────────────────
 
+  function MoodStat({ label, level, palette }) {
+    return (
+      <div style={{ textAlign: 'center' }}>
+        <div style={{ fontSize: 12, color: 'var(--text2)', marginBottom: 6 }}>{label}</div>
+        <BearMood level={level} palette={palette} size={52} />
+        <div style={{ fontSize: 12, color: 'var(--text2)', marginTop: 4 }}>{MOOD_LABELS[level]}</div>
+      </div>
+    );
+  }
+
   function WrapUp({ name, palette, moodBefore, moodAfter, reflection, onHome }) {
     return (
       <div className="wrapup">
         <BearFull palette={palette} size={110} />
         <h2 style={{ fontFamily: 'var(--serif)', fontSize: 24 }}>Nice work, {name}.</h2>
         <div style={{ display: 'flex', gap: 28, alignItems: 'center' }}>
-          <div style={{ textAlign: 'center' }}>
-            <div style={{ fontSize: 12, color: 'var(--text2)', marginBottom: 6 }}>Before</div>
-            <BearMood level={moodBefore} palette={palette} size={52} />
-            <div style={{ fontSize: 12, color: 'var(--text2)', marginTop: 4 }}>{MOOD_LABELS[moodBefore]}</div>
-          </div>
+          <MoodStat label="Before" level={moodBefore} palette={palette} />
           <span style={{ fontSize: 24, color: 'var(--text2)' }}>→</span>
-          <div style={{ textAlign: 'center' }}>
-            <div style={{ fontSize: 12, color: 'var(--text2)', marginBottom: 6 }}>After</div>
-            <BearMood level={moodAfter} palette={palette} size={52} />
-            <div style={{ fontSize: 12, color: 'var(--text2)', marginTop: 4 }}>{MOOD_LABELS[moodAfter]}</div>
-          </div>
+          <MoodStat label="After" level={moodAfter} palette={palette} />
         </div>
         {reflection && (
           <div className="card" style={{ maxWidth: 340, textAlign: 'center', fontStyle: 'italic', color: 'var(--text2)', fontSize: 15 }}>
@@ -899,10 +900,36 @@
 
   // ── Support Drawer ─────────────────────────────────────────────────────────────
 
+  var CRISIS_LABELS = {
+    mentalHealth:  '🧠 Mental Health',
+    gbv:           '🛡 GBV Support',
+    sexualAssault: '💙 Sexual Assault',
+    childSafety:   '🌱 Child Safety',
+    substance:     '🫶 Substance Support',
+    emergency:     '🚨 Emergency'
+  };
+
+  function CrisisItem({ item }) {
+    return (
+      <a href={'tel:' + item.phone} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: '1px solid var(--border)', textDecoration: 'none', color: 'var(--text)' }}>
+        <span style={{ fontSize: 14, fontWeight: item.urgent ? 600 : 400 }}>{item.name}</span>
+        <span style={{ color: 'var(--accent)', fontSize: 14, fontWeight: 700 }}>{item.phone}</span>
+      </a>
+    );
+  }
+
+  function CrisisCategory({ catKey, items }) {
+    return (
+      <div style={{ marginBottom: 14 }}>
+        <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text2)', marginBottom: 8 }}>{CRISIS_LABELS[catKey] || catKey}</div>
+        {items.map(function (item, i) { return <CrisisItem key={i} item={item} />; })}
+      </div>
+    );
+  }
+
   function SupportDrawer({ country, open, onClose, safetyLevel }) {
     var data = getCrisisData(country);
     var cats = data.categories;
-
     return (
       <BottomDrawer open={open} onClose={onClose}>
         <h3 style={{ fontFamily: 'var(--serif)', fontSize: 20, marginBottom: 4 }}>Support Resources</h3>
@@ -913,20 +940,7 @@
           </div>
         )}
         {Object.keys(cats).map(function (cat) {
-          var labels = { mentalHealth: '🧠 Mental Health', gbv: '🛡 GBV Support', sexualAssault: '💙 Sexual Assault', childSafety: '🌱 Child Safety', substance: '🫶 Substance Support', emergency: '🚨 Emergency' };
-          return (
-            <div key={cat} style={{ marginBottom: 14 }}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text2)', marginBottom: 8 }}>{labels[cat] || cat}</div>
-              {cats[cat].map(function (item, i) {
-                return (
-                  <a key={i} href={'tel:' + item.phone} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: '1px solid var(--border)', textDecoration: 'none', color: 'var(--text)' }}>
-                    <span style={{ fontSize: 14, fontWeight: item.urgent ? 600 : 400 }}>{item.name}</span>
-                    <span style={{ color: 'var(--accent)', fontSize: 14, fontWeight: 700 }}>{item.phone}</span>
-                  </a>
-                );
-              })}
-            </div>
-          );
+          return <CrisisCategory key={cat} catKey={cat} items={cats[cat]} />;
         })}
         <button className="btn btn-ghost btn-full" style={{ marginTop: 8 }} onClick={onClose}>Close</button>
       </BottomDrawer>
@@ -953,17 +967,28 @@
 
   // ── Sidebar Tabs ───────────────────────────────────────────────────────────────
 
+  var SIDEBAR_TABS = [
+    { id: 'menu',    label: '☰' },
+    { id: 'you',     label: '🐻 You' },
+    { id: 'journal', label: '📝 Journal' },
+    { id: 'mood',    label: '💭 Mood' },
+    { id: 'usage',   label: '📊 Usage' }
+  ];
+
   function JournalTab() {
-    var prompt = getTodayPrompt();
+    var [prompt, setPrompt] = useState('');
     var [entry, setEntry] = useState('');
     var [saved, setSaved] = useState(false);
     var [showHistory, setShowHistory] = useState(false);
-    var entries = JSON.parse(LS('journal') || '[]');
+    var [entries, setEntries] = useState(function () { return JSON.parse(LS('journal') || '[]'); });
+
+    useEffect(function () { setPrompt(getTodayPrompt()); }, []);
 
     function save() {
       if (!entry.trim()) return;
       var updated = [{ date: new Date().toDateString(), text: entry.trim(), prompt: prompt }].concat(entries).slice(0, 60);
       LSset('journal', JSON.stringify(updated));
+      setEntries(updated);
       setSaved(true);
       setTimeout(function () { setSaved(false); setEntry(''); }, 2000);
     }
@@ -1054,14 +1079,6 @@
     var [tab, setTab] = useState('menu');
     if (!open) return null;
 
-    var tabs = [
-      { id: 'menu', label: '☰' },
-      { id: 'you', label: '🐻 You' },
-      { id: 'journal', label: '📝 Journal' },
-      { id: 'mood', label: '💭 Mood' },
-      { id: 'usage', label: '📊 Usage' }
-    ];
-
     return (
       <div className="sidebar-overlay" onClick={onClose}>
         <div className="sidebar" onClick={function (e) { e.stopPropagation(); }}>
@@ -1073,7 +1090,7 @@
             <button onClick={onClose} style={{ fontSize: 20, color: 'var(--text2)' }}>✕</button>
           </div>
           <div className="sidebar-tab-bar">
-            {tabs.map(function (t) {
+            {SIDEBAR_TABS.map(function (t) {
               return (
                 <button key={t.id} className={'sidebar-tab' + (tab === t.id ? ' active' : '')} onClick={function () { setTab(t.id); }}>{t.label}</button>
               );
@@ -1221,10 +1238,9 @@
 
     // Inject CSS once
     useEffect(function () {
-      var el = document.getElementById('beru-css') || document.createElement('style');
-      el.id = 'beru-css';
+      var el = document.getElementById('beru-css');
+      if (!el) { el = document.createElement('style'); el.id = 'beru-css'; document.head.appendChild(el); }
       el.textContent = CSS;
-      if (!document.getElementById('beru-css')) document.head.appendChild(el);
     }, []);
 
     // Apply dark/light theme
@@ -1403,37 +1419,37 @@
 
     if (showWrapup) {
       return (
-        <div>
+        <>
           <WrapUp name={name} palette={palette} moodBefore={moodBefore} moodAfter={moodAfter} reflection={reflection} onHome={handleWrapupHome} />
-          {showRating && <RatingScreen onSubmit={function (r) { LSset('last_rated', String(Date.now())); setShowRating(false); }} onLater={function () { setShowRating(false); }} />}
-        </div>
+          {showRating && <RatingScreen onSubmit={function () { LSset('last_rated', String(Date.now())); setShowRating(false); }} onLater={function () { setShowRating(false); }} />}
+        </>
       );
     }
 
     if (phase === 'breathe') return <Breathe palette={palette} onBack={function () { setPhase('home'); }} />;
 
     var sharedOverlays = (
-      <div>
+      <>
         <SupportDrawer country={country} open={supportOpen} onClose={function () { setSupportOpen(false); }} safetyLevel={safetyLevel} />
         {showLocationConsent && <LocationConsent onAllow={handleGeoAllow} onSkip={function () { setShowLocationConsent(false); }} />}
         <Sidebar open={sidebarOpen} onClose={function () { setSidebarOpen(false); }} name={name} palette={palette} country={country} city={LS('city') || ''} dark={dark} onToggleDark={function () { setDark(function (d) { return !d; }); }} onPaletteChange={handlePaletteChange} onQuickExit={quickExit} onViewHistory={function () { setHistoryOpen(true); }} />
-      </div>
+      </>
     );
 
     if (phase === 'chat') {
       return (
-        <div>
+        <>
           <Chat mode={mode} messages={messages} moodBefore={moodBefore} safetyLevel={safetyLevel} sending={sending} circuitOpen={circuitOpen} onSend={sendMessage} onChangeMood={setMoodBefore} onBack={function () { setPhase('home'); }} onDone={endSession} onSupport={openSupport} />
           {sharedOverlays}
-        </div>
+        </>
       );
     }
 
     return (
-      <div>
+      <>
         <Home name={name} palette={palette} dark={dark} safetyLevel={safetyLevel} onStartChat={startChat} onBreath={function () { setPhase('breathe'); }} onMenu={function () { setSidebarOpen(true); }} onToggleDark={function () { setDark(function (d) { return !d; }); }} onSupport={openSupport} />
         {sharedOverlays}
-      </div>
+      </>
     );
   }
 
