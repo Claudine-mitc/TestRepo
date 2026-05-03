@@ -184,6 +184,20 @@
     } catch (e) {}
   }
 
+  // Sanitise a string read from localStorage or external API before rendering.
+  // React already escapes JSX text nodes, but this removes control characters
+  // and limits length so malformed storage data can't cause layout issues.
+  function sanitiseText(val, maxLen) {
+    if (val == null) return '';
+    return String(val).replace(/[\x00-\x1F\x7F]/g, '').slice(0, maxLen || 120);
+  }
+
+  // Allowed ISO country codes — validate before trusting any external source.
+  var VALID_COUNTRY_CODES = new Set([
+    'AU','BR','CA','DE','FR','GB','GH','IN','KE','NG','NZ','PH',
+    'SG','TZ','UG','US','ZA','ZM','ZW','INTL'
+  ]);
+
   function sleep(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
 
   async function fetchWithRetry(url, opts, retries) {
@@ -202,13 +216,18 @@
 
   async function detectCountry() {
     var stored = LS('country');
-    if (stored) return stored;
+    // Validate stored value before trusting it — defence against tampered localStorage
+    if (stored && VALID_COUNTRY_CODES.has(stored.toUpperCase())) return stored.toUpperCase();
     try {
       var r = await fetch('https://ipapi.co/json/');
+      if (!r.ok) return 'INTL';
       var d = await r.json();
-      var code = (d.country_code || 'INTL').toUpperCase();
+      var raw  = typeof d.country_code === 'string' ? d.country_code.toUpperCase() : '';
+      // Only accept a code from our known-safe list
+      var code = VALID_COUNTRY_CODES.has(raw) ? raw : 'INTL';
       LSset('country', code);
-      if (d.city) LSset('city', d.city);
+      // Sanitise the city string before storing — external data, not user-entered
+      if (typeof d.city === 'string') LSset('city', sanitiseText(d.city, 80));
       return code;
     } catch (e) { return 'INTL'; }
   }
@@ -220,9 +239,15 @@
         try {
           var lat = pos.coords.latitude;
           var lon = pos.coords.longitude;
-          var r = await fetch('https://nominatim.openstreetmap.org/reverse?lat=' + lat + '&lon=' + lon + '&format=json');
+          // URLSearchParams prevents any injection via coordinate values
+          var params = new URLSearchParams({ lat: lat, lon: lon, format: 'json' });
+          var r = await fetch('https://nominatim.openstreetmap.org/reverse?' + params.toString());
+          if (!r.ok) { onError && onError(); return; }
           var d = await r.json();
-          var code = ((d.address && d.address.country_code) || 'intl').toUpperCase();
+          var raw  = (d.address && typeof d.address.country_code === 'string')
+            ? d.address.country_code.toUpperCase() : '';
+          // Only accept a code from our known-safe list
+          var code = VALID_COUNTRY_CODES.has(raw) ? raw : 'INTL';
           LSset('country', code);
           LSset('geo_consent', 'granted');
           onSuccess && onSuccess(code);
@@ -482,11 +507,11 @@
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14, flex: 1 }}>
             <div>
               <label style={{ fontSize: 13, color: 'var(--text2)', display: 'block', marginBottom: 4 }}>First name *</label>
-              <input value={firstName} onChange={function (e) { setFirstName(e.target.value); }} placeholder="Your first name" />
+              <input value={firstName} onChange={function (e) { setFirstName(e.target.value); }} placeholder="Your first name" maxLength={60} />
             </div>
             <div>
               <label style={{ fontSize: 13, color: 'var(--text2)', display: 'block', marginBottom: 4 }}>Surname *</label>
-              <input value={surname} onChange={function (e) { setSurname(e.target.value); }} placeholder="Your surname" />
+              <input value={surname} onChange={function (e) { setSurname(e.target.value); }} placeholder="Your surname" maxLength={60} />
             </div>
             <div>
               <label style={{ fontSize: 13, color: 'var(--text2)', display: 'block', marginBottom: 4 }}>Gender *</label>
@@ -534,7 +559,7 @@
             </div>
             <div>
               <label style={{ fontSize: 13, color: 'var(--text2)', display: 'block', marginBottom: 4 }}>City / Town *</label>
-              <input value={city} onChange={function (e) { setCity(e.target.value); }} placeholder="Where are you based?" />
+              <input value={city} onChange={function (e) { setCity(e.target.value); }} placeholder="Where are you based?" maxLength={80} />
             </div>
           </div>
         )}
@@ -739,6 +764,7 @@
             onKeyDown={handleKey}
             placeholder={mode.placeholder}
             rows={1}
+            maxLength={2000}
           />
           <button className="send-btn" onClick={function () { if (text.trim()) { onSend(text.trim()); setText(''); } }} disabled={!text.trim() || sending}>↑</button>
         </div>
@@ -984,13 +1010,15 @@
   }
 
   function ProfileTab({ name, country, city, palette, onPaletteChange, onQuickExit }) {
-    var surname = LS('surname') || '';
+    var surname = sanitiseText(LS('surname') || '', 60);
+    var safeCity = sanitiseText(city, 80);
+    var safeCountry = VALID_COUNTRY_CODES.has((country || '').toUpperCase()) ? country : '';
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
         <div className="card" style={{ textAlign: 'center' }}>
           <BearFull palette={palette} size={80} />
           <div style={{ fontWeight: 700, fontSize: 18, marginTop: 8 }}>{name} {surname}</div>
-          {city && <div style={{ color: 'var(--text2)', fontSize: 14 }}>{city}{country && country !== 'INTL' ? ', ' + country : ''}</div>}
+          {safeCity && <div style={{ color: 'var(--text2)', fontSize: 14 }}>{safeCity}{safeCountry && safeCountry !== 'INTL' ? ', ' + safeCountry : ''}</div>}
         </div>
         <div>
           <div style={{ fontSize: 13, color: 'var(--text2)', marginBottom: 8 }}>Bear colour</div>
@@ -1189,7 +1217,7 @@
     var [showEndMood, setShowEndMood] = useState(false);
     var [showWrapup, setShowWrapup] = useState(false);
 
-    var name = LS('name') || 'friend';
+    var name = sanitiseText(LS('name') || 'friend', 60);
 
     // Inject CSS once
     useEffect(function () {
@@ -1274,12 +1302,18 @@
           body: JSON.stringify({ messages: updated, country: country, mode: mode.label, safetyLevel: newLevel })
         });
         if (!r.ok) {
-          var err = await r.json().catch(function () { return {}; });
-          setMessages(function (prev) { return prev.concat([{ role: 'assistant', content: err.error || "Something got in the way. Let's try that again." }]); });
+          var errBody = await r.json().catch(function () { return {}; });
+          // Use server-provided message only if it's a short string — never render arbitrary JSON
+          var errMsg = (typeof errBody.error === 'string' && errBody.error.length < 200)
+            ? errBody.error : "Something got in the way. Let's try that again.";
+          setMessages(function (prev) { return prev.concat([{ role: 'assistant', content: errMsg }]); });
           recordFailure();
         } else {
           var data = await r.json();
-          setMessages(function (prev) { return prev.concat([{ role: 'assistant', content: data.reply }]); });
+          // Validate that reply is a non-empty string before rendering
+          var reply = (data && typeof data.reply === 'string' && data.reply.trim())
+            ? data.reply.trim() : "I'm here — something went quiet on my end. Try again?";
+          setMessages(function (prev) { return prev.concat([{ role: 'assistant', content: reply }]); });
           recordSuccess();
           setCircuitOpen(false);
         }

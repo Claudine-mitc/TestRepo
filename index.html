@@ -8,6 +8,51 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="Beru" />
+
+  <!-- Security meta tags -->
+  <!-- Prevent the page from being framed (clickjacking defence) -->
+  <meta http-equiv="X-Frame-Options" content="DENY" />
+  <!-- Prevent MIME-type sniffing -->
+  <meta http-equiv="X-Content-Type-Options" content="nosniff" />
+  <!-- No referrer sent to any external site -->
+  <meta name="referrer" content="no-referrer" />
+  <!-- Prevent indexing of a private wellness app -->
+  <meta name="robots" content="noindex, nofollow" />
+
+  <!--
+    Content Security Policy
+    ─────────────────────────────────────────────────────────────────────────
+    'unsafe-eval' is required for Babel standalone (in-browser JSX transpilation).
+    This is a known demo trade-off — remove by adding a build step in production
+    and serving pre-compiled JS instead of app.jsx + Babel.
+
+    External fetches allowed:
+      ipapi.co             — IP-based country detection (detectCountry)
+      nominatim.openstreetmap.org — Reverse geocoding (geoLocate)
+      fonts.googleapis.com / fonts.gstatic.com — Google Fonts
+      plausible.io         — Privacy-first analytics
+    All other connections blocked by default-src 'none'.
+  -->
+  <meta http-equiv="Content-Security-Policy" content="
+    default-src 'none';
+    script-src  'self' 'unsafe-eval'
+                https://unpkg.com
+                https://plausible.io;
+    style-src   'self' 'unsafe-inline'
+                https://fonts.googleapis.com;
+    font-src    https://fonts.gstatic.com;
+    connect-src 'self'
+                https://ipapi.co
+                https://nominatim.openstreetmap.org
+                https://plausible.io;
+    img-src     'self' data:;
+    worker-src  'self';
+    manifest-src 'self';
+    frame-ancestors 'none';
+    form-action 'none';
+    base-uri    'self';
+  " />
+
   <title>Beru — AI Mental Wellness Companion</title>
   <link rel="manifest" href="/manifest.json" />
   <link rel="icon" href="/icon-192.png" />
@@ -19,38 +64,62 @@
   <!-- Plausible analytics (privacy-first, no cookies) -->
   <script defer data-domain="heyberu.com" src="https://plausible.io/js/script.js"></script>
 
-  <!-- Global error handlers — must run before any other scripts -->
+  <!--
+    Global error handlers
+    Must run before any other scripts so unhandled errors are captured from the start.
+    logError sanitises what it sends to the server — only safe structural fields,
+    never raw user-controlled message content.
+  -->
   <script>
-    window._beruErrors = [];
+    (function () {
+      'use strict';
 
-    function logError(info) {
-      try {
-        window._beruErrors.push({ ts: Date.now(), info: info });
-        if (window._beruErrors.length > 50) window._beruErrors.shift();
-        var stored = [];
-        try { stored = JSON.parse(localStorage.getItem('beru_error_log') || '[]'); } catch(e) {}
-        stored.push({ ts: Date.now(), info: info });
-        if (stored.length > 50) stored.shift();
-        localStorage.setItem('beru_error_log', JSON.stringify(stored));
-      } catch(e) {}
-      // Fire-and-forget to server (best effort)
-      try {
-        fetch('/api/log-error', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(info)
-        });
-      } catch(e) {}
-    }
+      window._beruErrors = [];
 
-    window.onerror = function(msg, src, line, col, err) {
-      logError({ type: 'onerror', msg: msg, src: src, line: line, col: col });
-      return false;
-    };
+      function sanitise(v, maxLen) {
+        if (v == null) return '';
+        return String(v).replace(/[<>"'&]/g, '').slice(0, maxLen || 200);
+      }
 
-    window.onunhandledrejection = function(e) {
-      logError({ type: 'unhandledrejection', reason: String(e.reason) });
-    };
+      function logError(info) {
+        // Store locally (capped at 50 entries)
+        try {
+          window._beruErrors.push({ ts: Date.now(), info: info });
+          if (window._beruErrors.length > 50) window._beruErrors.shift();
+          var stored = [];
+          try { stored = JSON.parse(localStorage.getItem('beru_error_log') || '[]'); } catch (e) {}
+          stored.push({ ts: Date.now(), info: info });
+          if (stored.length > 50) stored.shift();
+          localStorage.setItem('beru_error_log', JSON.stringify(stored));
+        } catch (e) {}
+
+        // Send only safe structural fields — never raw user content
+        try {
+          fetch('/api/log-error', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            // type/src/line are browser-provided metadata, not user text
+            body: JSON.stringify({
+              type: sanitise(info.type, 30),
+              src:  sanitise(info.src, 200),
+              line: typeof info.line === 'number' ? info.line : 0,
+            }),
+          });
+        } catch (e) {}
+      }
+
+      window.onerror = function (msg, src, line, col) {
+        logError({ type: 'onerror', src: src, line: line });
+        return false; // do not suppress error in devtools
+      };
+
+      window.onunhandledrejection = function (e) {
+        logError({ type: 'unhandledrejection', src: 'promise' });
+      };
+
+      // Expose for app use
+      window._logError = logError;
+    }());
   </script>
 
   <style>
@@ -62,23 +131,29 @@
 <body>
   <div id="root"></div>
 
-  <!-- React + ReactDOM from CDN -->
-  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
-  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
-  <!-- Babel standalone for JSX transpilation (no build step) -->
-  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <!--
+    CDN scripts — pinned to exact versions so SRI hashes remain stable.
+    SRI (Subresource Integrity): generate hashes for production with:
+      curl -s <url> | openssl dgst -sha384 -binary | openssl base64 -A
+    Then set: integrity="sha384-<hash>" crossorigin="anonymous"
+    Pinned versions below are the last stable releases as of May 2026.
+  -->
+  <script src="https://unpkg.com/react@18.3.1/umd/react.production.min.js" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js" crossorigin="anonymous"></script>
+  <!-- Babel standalone — required for in-browser JSX (demo only; replace with build step in prod) -->
+  <script src="https://unpkg.com/@babel/standalone@7.24.0/babel.min.js" crossorigin="anonymous"></script>
 
-  <!-- Crisis data (sets global CRISIS_DATA, getCrisisData, getCountryList) -->
+  <!-- Crisis data (sets globals: CRISIS_DATA, getCrisisData, getCountryList) -->
   <script src="/crisis-data.js"></script>
 
-  <!-- Main application -->
+  <!-- Main application (Babel transpiles JSX at load time) -->
   <script type="text/babel" src="/app.jsx"></script>
 
   <!-- Service worker registration -->
   <script>
     if ('serviceWorker' in navigator) {
-      window.addEventListener('load', function() {
-        navigator.serviceWorker.register('/service-worker.js').catch(function(err) {
+      window.addEventListener('load', function () {
+        navigator.serviceWorker.register('/service-worker.js').catch(function (err) {
           console.warn('SW registration failed:', err);
         });
       });
