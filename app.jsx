@@ -39,19 +39,21 @@
     '.mode-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;padding:16px;}',
     '.mode-card{background:var(--card);border:1.5px solid var(--border);border-radius:var(--radius);padding:18px 14px;cursor:pointer;transition:border-color .15s,transform .1s;display:flex;flex-direction:column;gap:8px;}',
     '.mode-card:hover{border-color:var(--accent);transform:scale(1.02);}',
+    '.mode-card:active{transform:scale(.97);border-color:var(--accent);}',
     '.mode-icon{font-size:26px;}',
     '.mode-label{font-size:13px;font-weight:600;color:var(--text2);}',
     '.chat-messages{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:12px;}',
     '.msg{max-width:85%;}',
     '.msg-user{align-self:flex-end;background:var(--accent);color:#fff;border-radius:18px 18px 4px 18px;padding:10px 14px;font-size:15px;}',
     '.msg-assistant{align-self:flex-start;background:var(--card);border-radius:18px 18px 18px 4px;padding:10px 14px;font-size:15px;border:1px solid var(--border);}',
+    '.msg-welcome{align-self:center;background:transparent;border:1.5px dashed var(--border);border-radius:12px;padding:10px 16px;font-size:14px;color:var(--text2);font-style:italic;max-width:90%;text-align:center;}',
     '.chat-dock{padding:12px 14px;background:var(--bg2);border-top:1px solid var(--border);display:flex;gap:8px;align-items:flex-end;}',
     '.chat-input{flex:1;border-radius:20px;padding:10px 16px;min-height:42px;max-height:120px;resize:none;}',
     '.send-btn{width:42px;height:42px;border-radius:50%;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:18px;}',
     '.mood-bar{display:flex;justify-content:space-between;padding:8px 16px;background:var(--bg2);border-bottom:1px solid var(--border);}',
-    '.mood-btn{font-size:22px;opacity:.5;transition:opacity .1s,transform .1s;cursor:pointer;}',
+    '.mood-btn{font-size:22px;opacity:.5;transition:opacity .1s,transform .1s;cursor:pointer;padding:8px;min-width:44px;min-height:44px;display:flex;align-items:center;justify-content:center;}',
     '.mood-btn.active{opacity:1;transform:scale(1.3);}',
-    '.breathe-screen{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;background:var(--bg);gap:28px;padding:24px;}',
+    '.breathe-screen{position:relative;min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;background:var(--bg);gap:28px;padding:24px;}',
     '.orb{border-radius:50%;background:radial-gradient(circle,var(--accent2),var(--accent));cursor:pointer;transition:width 1.5s ease-in-out,height 1.5s ease-in-out;}',
     '.breath-label{font-size:22px;font-weight:700;color:var(--text);letter-spacing:2px;text-transform:uppercase;}',
     '.drawer-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:100;display:flex;align-items:flex-end;}',
@@ -77,7 +79,7 @@
     '@keyframes pulse-red{0%,100%{box-shadow:0 0 0 0 rgba(224,80,64,.4)}50%{box-shadow:0 0 0 8px rgba(224,80,64,0)}}',
     '@keyframes confetti-fall{0%{transform:translateY(-20px) rotate(0deg);opacity:1}100%{transform:translateY(100vh) rotate(720deg);opacity:0}}',
     '.confetti-piece{position:fixed;top:0;width:10px;height:10px;border-radius:2px;animation:confetti-fall linear forwards;z-index:400;}',
-    '.wrapup{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;background:var(--bg);padding:32px 24px;gap:24px;text-align:center;}',
+    '.wrapup{min-height:100vh;overflow-y:auto;display:flex;flex-direction:column;align-items:center;justify-content:center;background:var(--bg);padding:32px 24px;gap:24px;text-align:center;}',
     '::-webkit-scrollbar{width:4px;}',
     '::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px;}'
   ].join('');
@@ -466,6 +468,10 @@
     var months = ['January', 'February', 'March', 'April', 'May', 'June',
       'July', 'August', 'September', 'October', 'November', 'December'];
 
+    var maxDays = bdMonth
+      ? new Date(2000, parseInt(bdMonth, 10), 0).getDate()
+      : 31;
+
     function canContinue() {
       if (step === 1) return firstName.trim() && surname.trim() && gender;
       if (step === 2) return country && city.trim();
@@ -538,9 +544,16 @@
               <div style={{ display: 'flex', gap: 8 }}>
                 <select value={bdDay} onChange={function (e) { setBdDay(e.target.value); }} style={{ flex: 1 }}>
                   <option value="">Day</option>
-                  {Array.from({ length: 31 }, function (_, i) { return <option key={i + 1} value={i + 1}>{i + 1}</option>; })}
+                  {Array.from({ length: maxDays }, function (_, i) { return <option key={i + 1} value={i + 1}>{i + 1}</option>; })}
                 </select>
-                <select value={bdMonth} onChange={function (e) { setBdMonth(e.target.value); }} style={{ flex: 2 }}>
+                <select value={bdMonth} onChange={function (e) {
+                  var m = e.target.value;
+                  setBdMonth(m);
+                  if (m && bdDay) {
+                    var cap = new Date(2000, parseInt(m, 10), 0).getDate();
+                    if (parseInt(bdDay, 10) > cap) setBdDay('');
+                  }
+                }} style={{ flex: 2 }}>
                   <option value="">Month</option>
                   {months.map(function (m, i) { return <option key={i + 1} value={i + 1}>{m}</option>; })}
                 </select>
@@ -747,7 +760,7 @@
           </div>
         )}
         <div className="chat-messages">
-          <div className="msg msg-assistant">{mode.welcome}</div>
+          <div className="msg msg-welcome">{mode.welcome}</div>
           {messages.map(function (m, i) {
             return (
               <div key={i} className={'msg msg-' + m.role} style={{ whiteSpace: 'pre-wrap' }}>{m.content}</div>
@@ -761,6 +774,7 @@
             className="chat-input"
             value={text}
             onChange={function (e) { setText(e.target.value); }}
+            onInput={function (e) { e.target.style.height = 'auto'; e.target.style.height = Math.min(e.target.scrollHeight, 120) + 'px'; }}
             onKeyDown={handleKey}
             placeholder={mode.placeholder}
             rows={1}
@@ -785,9 +799,10 @@
     var timerRef = useRef(null);
 
     function stop() {
+      clearTimeout(timerRef.current);
       setRunning(false);
       setPhase('ready');
-      clearTimeout(timerRef.current);
+      setCount(0);
     }
 
     function runPhase(pat, phaseIdx, remaining) {
@@ -959,7 +974,7 @@
             This lets me show you the most relevant local support if you ever need it. Your location is never sent to our servers.
           </p>
           <button className="btn btn-primary btn-full" style={{ marginBottom: 10 }} onClick={onAllow}>Allow location</button>
-          <button className="btn btn-ghost btn-full" onClick={onSkip}>Skip for now</button>
+          <button className="btn btn-ghost btn-full" onClick={onSkip}>Not now</button>
         </div>
       </div>
     );
@@ -1075,8 +1090,7 @@
     );
   }
 
-  function Sidebar({ open, onClose, name, palette, country, city, dark, onToggleDark, onPaletteChange, onQuickExit, onViewHistory }) {
-    var [tab, setTab] = useState('menu');
+  function Sidebar({ open, tab, onTabChange, onClose, name, palette, country, city, dark, onToggleDark, onPaletteChange, onQuickExit, onViewHistory }) {
     if (!open) return null;
 
     return (
@@ -1092,7 +1106,7 @@
           <div className="sidebar-tab-bar">
             {SIDEBAR_TABS.map(function (t) {
               return (
-                <button key={t.id} className={'sidebar-tab' + (tab === t.id ? ' active' : '')} onClick={function () { setTab(t.id); }}>{t.label}</button>
+                <button key={t.id} className={'sidebar-tab' + (tab === t.id ? ' active' : '')} onClick={function () { onTabChange(t.id); }}>{t.label}</button>
               );
             })}
           </div>
@@ -1219,6 +1233,7 @@
     var [palette, setPalette] = useState(BEAR_PALETTES[parseInt(LS('palette') || '0', 10)] || BEAR_PALETTES[0]);
     var [country, setCountry] = useState(LS('country') || 'INTL');
     var [sidebarOpen, setSidebarOpen] = useState(false);
+    var [sidebarTab, setSidebarTab] = useState('menu');
     var [supportOpen, setSupportOpen] = useState(false);
     var [historyOpen, setHistoryOpen] = useState(false);
     var [showRating, setShowRating] = useState(false);
@@ -1376,13 +1391,15 @@
       // Rating check
       var lastRated = LS('last_rated');
       var daysSince = lastRated ? Math.floor((Date.now() - parseInt(lastRated, 10)) / 86400000) : 9999;
-      if (sessions.length === 3 || daysSince >= 15) setShowRating(true);
+      if (sessions.length === 3 || daysSince >= 30) setShowRating(true);
     }
 
     function handleWrapupHome() {
       setShowWrapup(false);
       setMessages([]);
       setReflection('');
+      setMoodAfter(2);
+      setSafetyLevel(0);
       setPhase('home');
     }
 
@@ -1399,8 +1416,13 @@
     function handleGeoAllow() {
       geoLocate(
         function (code) { setCountry(code); setShowLocationConsent(false); },
-        function () { setShowLocationConsent(false); }
+        function () { LSset('geo_consent', 'denied'); setShowLocationConsent(false); }
       );
+    }
+
+    function handleGeoSkip() {
+      LSset('geo_consent', 'skipped');
+      setShowLocationConsent(false);
     }
 
     function handlePaletteChange(p) {
@@ -1431,8 +1453,8 @@
     var sharedOverlays = (
       <>
         <SupportDrawer country={country} open={supportOpen} onClose={function () { setSupportOpen(false); }} safetyLevel={safetyLevel} />
-        {showLocationConsent && <LocationConsent onAllow={handleGeoAllow} onSkip={function () { setShowLocationConsent(false); }} />}
-        <Sidebar open={sidebarOpen} onClose={function () { setSidebarOpen(false); }} name={name} palette={palette} country={country} city={LS('city') || ''} dark={dark} onToggleDark={function () { setDark(function (d) { return !d; }); }} onPaletteChange={handlePaletteChange} onQuickExit={quickExit} onViewHistory={function () { setHistoryOpen(true); }} />
+        {showLocationConsent && <LocationConsent onAllow={handleGeoAllow} onSkip={handleGeoSkip} />}
+        <Sidebar open={sidebarOpen} tab={sidebarTab} onTabChange={setSidebarTab} onClose={function () { setSidebarOpen(false); }} name={name} palette={palette} country={country} city={LS('city') || ''} dark={dark} onToggleDark={function () { setDark(function (d) { return !d; }); }} onPaletteChange={handlePaletteChange} onQuickExit={quickExit} onViewHistory={function () { setHistoryOpen(true); }} />
       </>
     );
 
