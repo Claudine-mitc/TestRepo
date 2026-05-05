@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192" width="192" height="192">
+  <rect width="192" height="192" rx="40" fill="#1A1008"/>
+  <!-- Ears -->
+  <circle cx="52" cy="60" r="28" fill="#C87840"/>
+  <circle cx="140" cy="60" r="28" fill="#C87840"/>
+  <!-- Head -->
+  <circle cx="96" cy="112" r="62" fill="#C87840"/>
+  <!-- Belly / muzzle -->
+  <ellipse cx="96" cy="128" rx="30" ry="21" fill="#E8A870"/>
+  <!-- Eyes -->
+  <circle cx="76" cy="100" r="10" fill="#3D1A00"/>
+  <circle cx="116" cy="100" r="10" fill="#3D1A00"/>
+  <!-- Eye shine -->
+  <circle cx="79" cy="97" r="3.5" fill="white"/>
+  <circle cx="119" cy="97" r="3.5" fill="white"/>
+  <!-- Nose -->
+  <ellipse cx="96" cy="118" rx="10" ry="7" fill="#3D1A00" opacity="0.7"/>
+  <!-- Smile -->
+  <path d="M84 130 Q96 140 108 130" stroke="#3D1A00" stroke-width="3.5" stroke-linecap="round" fill="none"/>
+</svg>

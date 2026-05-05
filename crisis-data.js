@@ -1,5 +1,6 @@
 // Emergency contacts keyed by ISO country code.
-// getCrisisData(code) is the only public function — falls back to INTL.
+// getCrisisData(code) — falls back to INTL for unknown codes.
+// Entry type field: omit for phone calls; 'sms' for text lines; 'url' for web links.
 // To add a country: copy any block, change the key, update contacts.
 
 var CRISIS_DATA = {
@@ -41,12 +42,12 @@ var CRISIS_DATA = {
     categories: {
       mentalHealth: [
         { name: '988 Suicide & Crisis Lifeline', phone: '988', urgent: true },
-        { name: 'Crisis Text Line', phone: 'Text HOME to 741741' },
+        { name: 'Crisis Text Line', phone: '741741', type: 'sms' },
         { name: 'NAMI Helpline', phone: '1-800-950-6264' }
       ],
       gbv: [
         { name: 'National DV Hotline', phone: '1-800-799-7233', urgent: true },
-        { name: 'DV Text Line', phone: 'Text START to 88788' }
+        { name: 'DV Text Line', phone: '88788', type: 'sms' }
       ],
       sexualAssault: [
         { name: 'RAINN Hotline', phone: '1-800-656-4673', urgent: true }
@@ -174,8 +175,8 @@ var CRISIS_DATA = {
     name: 'International',
     categories: {
       mentalHealth: [
-        { name: 'Find A Helpline', phone: 'findahelpline.com', urgent: true },
-        { name: 'IASP Crisis Centres', phone: 'https://www.iasp.info/resources/Crisis_Centres/' }
+        { name: 'Find A Helpline', phone: 'https://findahelpline.com', type: 'url', urgent: true },
+        { name: 'IASP Crisis Centres', phone: 'https://www.iasp.info/resources/Crisis_Centres/', type: 'url' }
       ],
       emergency: [
         { name: 'Contact local emergency services', phone: '112 (works in most countries)' }
@@ -189,11 +190,4 @@ function getCrisisData(code) {
   if (!code) return CRISIS_DATA.INTL;
   var found = CRISIS_DATA[code.toUpperCase()];
   return found || CRISIS_DATA.INTL;
-}
-
-function getCountryList() {
-  return Object.keys(CRISIS_DATA)
-    .filter(function(k) { return k !== 'INTL'; })
-    .map(function(k) { return { code: k, name: CRISIS_DATA[k].name }; })
-    .sort(function(a, b) { return a.name.localeCompare(b.name); });
 }

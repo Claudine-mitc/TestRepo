@@ -1,8 +1,7 @@
-var CACHE = 'beru-v1';
+var CACHE = 'beru-v2';
 var SHELL = [
   '/',
   '/index.html',
-  '/app.jsx',
   '/crisis-data.js',
   '/manifest.json'
 ];

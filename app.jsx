@@ -186,6 +186,10 @@
     } catch (e) {}
   }
 
+  function safeParse(val, fallback) {
+    try { return JSON.parse(val); } catch (e) { return fallback; }
+  }
+
   // Sanitise a string read from localStorage or external API before rendering.
   // React already escapes JSX text nodes, but this removes control characters
   // and limits length so malformed storage data can't cause layout issues.
@@ -744,7 +748,7 @@
     }, [messages, sending]);
 
     function handleKey(e) {
-      if (e.key === 'Enter' && !e.shiftKey) {
+      if (e.key === 'Enter' && !e.shiftKey && !sending) {
         e.preventDefault();
         if (text.trim()) { onSend(text.trim()); setText(''); }
       }
@@ -925,8 +929,14 @@
   };
 
   function CrisisItem({ item }) {
+    var href = item.type === 'sms' ? 'sms:' + item.phone
+             : item.type === 'url' ? item.phone
+             : 'tel:' + item.phone;
     return (
-      <a href={'tel:' + item.phone} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: '1px solid var(--border)', textDecoration: 'none', color: 'var(--text)' }}>
+      <a href={href}
+         target={item.type === 'url' ? '_blank' : undefined}
+         rel={item.type === 'url' ? 'noopener noreferrer' : undefined}
+         style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: '1px solid var(--border)', textDecoration: 'none', color: 'var(--text)' }}>
         <span style={{ fontSize: 14, fontWeight: item.urgent ? 600 : 400 }}>{item.name}</span>
         <span style={{ color: 'var(--accent)', fontSize: 14, fontWeight: 700 }}>{item.phone}</span>
       </a>
@@ -995,7 +1005,7 @@
     var [entry, setEntry] = useState('');
     var [saved, setSaved] = useState(false);
     var [showHistory, setShowHistory] = useState(false);
-    var [entries, setEntries] = useState(function () { return JSON.parse(LS('journal') || '[]'); });
+    var [entries, setEntries] = useState(function () { return safeParse(LS('journal'), []); });
 
     useEffect(function () { setPrompt(getTodayPrompt()); }, []);
 
@@ -1029,7 +1039,7 @@
   }
 
   function MoodHistoryTab({ palette }) {
-    var history = JSON.parse(LS('mood_history') || '[]');
+    var history = safeParse(LS('mood_history'), []);
     if (!history.length) return <p style={{ color: 'var(--text2)', fontSize: 14 }}>No sessions yet. Start chatting to track your mood.</p>;
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -1134,7 +1144,7 @@
   // ── Conversation History ───────────────────────────────────────────────────────
 
   function ConversationHistory({ onClose, palette }) {
-    var sessions = JSON.parse(LS('sessions') || '[]');
+    var sessions = safeParse(LS('sessions'), []);
     return (
       <div className="screen">
         <div className="topbar">
@@ -1304,6 +1314,7 @@
     function startChat(m) {
       setMode(m);
       setMessages([]);
+      setReflection('');
       setSafetyLevel(0);
       setMoodBefore(2);
       setPhase('chat');
@@ -1366,8 +1377,8 @@
       setMoodAfter(afterMood);
       setShowEndMood(false);
       setShowWrapup(true);
-      var sessions = JSON.parse(LS('sessions') || '[]');
-      var moodHistory = JSON.parse(LS('mood_history') || '[]');
+      var sessions = safeParse(LS('sessions'), []);
+      var moodHistory = safeParse(LS('mood_history'), []);
       var entry = { date: new Date().toLocaleDateString(), mode: mode.label, moodBefore: moodBefore, moodAfter: afterMood, reflection: '' };
       sessions.unshift(entry);
       if (sessions.length > 30) sessions.pop();
@@ -1384,7 +1395,7 @@
       }).then(function (r) { return r.json(); }).then(function (d) {
         if (d.reflection) {
           setReflection(d.reflection);
-          var updated = JSON.parse(LS('sessions') || '[]');
+          var updated = safeParse(LS('sessions'), []);
           if (updated[0]) { updated[0].reflection = d.reflection; LSset('sessions', JSON.stringify(updated)); }
         }
       }).catch(function () {});

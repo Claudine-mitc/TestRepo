@@ -46,7 +46,7 @@ const ALLOWED_COUNTRIES = new Set(['ZA', 'US', 'GB', 'AU', 'NG', 'KE', 'INTL']);
 // Allowed mode strings (must be one of the client-side MODES labels)
 const ALLOWED_MODES = new Set([
   "I'm feeling anxious", "I'm feeling low", "I need to talk", "I'm frustrated",
-  "I feel lost", "I'm overwhelmed", "Something good happened", "I want to reflect", ''
+  "I feel lost", "I'm overwhelmed", "Something good happened", "I want to reflect"
 ]);
 
 // ── Input sanitiser — strips prompt-injection characters ──────────────────────
@@ -94,6 +94,12 @@ app.use(cors({
 
 // ── Body parser — tight limit ──────────────────────────────────────────────────
 app.use(express.json({ limit: '20kb' }));
+
+// ── Prevent API responses from being cached by intermediary proxies ────────────
+app.use('/api/', (_req, res, next) => {
+  res.setHeader('Cache-Control', 'no-store');
+  next();
+});
 
 // ── Rate limits ────────────────────────────────────────────────────────────────
 
@@ -230,11 +236,9 @@ app.post('/api/chat', chatLimit, async (req, res, next) => {
   const { messages, country, mode, safetyLevel } = value;
   const systemPrompt = buildSystemPrompt(country, mode, safetyLevel);
 
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 25000);
   try {
-    // AbortController enforces a hard timeout — prevents request from hanging indefinitely.
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 25000);
-
     const response = await client.messages.create(
       {
         model:      'claude-sonnet-4-6',
@@ -244,7 +248,6 @@ app.post('/api/chat', chatLimit, async (req, res, next) => {
       },
       { signal: controller.signal }
     );
-    clearTimeout(timeout);
 
     const reply = response.content[0].text;
     const result = { reply };
@@ -261,11 +264,13 @@ app.post('/api/chat', chatLimit, async (req, res, next) => {
       return next(new AppError("You've reached the message limit. Come back a little later.", 429));
     }
     return next(new AppError("Something got in the way. Let's try that again.", 502));
+  } finally {
+    clearTimeout(timeout);
   }
 });
 
 // Reflection endpoint
-app.post('/api/reflect', async (req, res) => {
+app.post('/api/reflect', chatLimit, async (req, res) => {
   const { error, value } = reflectSchema.validate(req.body, { abortEarly: true });
   if (error) return res.status(400).json({ error: toPublicError(error) });
 
@@ -284,17 +289,18 @@ app.post('/api/reflect', async (req, res) => {
     'Write only the sentence. No quotes. No labels.',
   ].join(' ');
 
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 15000);
   try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 15000);
     const response = await client.messages.create(
       { model: 'claude-sonnet-4-6', max_tokens: 80, messages: [{ role: 'user', content: prompt }] },
       { signal: controller.signal }
     );
-    clearTimeout(timeout);
     return res.json({ reflection: response.content[0].text.trim() });
   } catch {
     return res.json({ reflection: '' });
+  } finally {
+    clearTimeout(timeout);
   }
 });
 
